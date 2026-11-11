@@ -401,9 +401,26 @@ for name, step2, se2, step3, se3 in zip(
 #   What would that tell you about your model, or about the experiment?
 
 # %%
+residuals_task3 = cA_all - cA_model_all(x_all, *params_task3)
+s_residual = np.sqrt(np.sum(residuals_task3**2) / (len(cA_all) - len(params_task3)))
+print(f"Residual standard deviation estimate s = {s_residual:.4f} mol/L")
+for T in temperatures:
+    r_T = residuals_task3[T_all == T]
+    print(f"{T:.2f} K: residual RMS = {np.sqrt(np.mean(r_T**2)):.4f} mol/L")
+
+fig, ax = plt.subplots()
+for T in temperatures:
+    mask = T_all == T
+    ax.plot(t_all[mask], residuals_task3[mask], "o-", label=f"{T:.0f} K")
+ax.axhline(0, color="black", linewidth=1)
+ax.set_xlabel("time (s)")
+ax.set_ylabel("data - model (mol/L)")
+ax.legend(title="temperature")
+fig.tight_layout()
+plt.show()
 
 # %% [markdown]
-# *Answer:*
+# *Answer:* The residuals fluctuate around zero with no strong smooth time trend, though there are short runs of same-sign residuals, especially at 308 K, so they are not perfectly patternless. The scatter is roughly similar across temperatures (about 0.07–0.10 mol/L RMS), and the pooled estimate is $s=0.0889$ mol/L using $N-p=30-4=26$ degrees of freedom. This suggests the effective measurement-plus-model scatter is around 0.09 mol/L, not 0.01 mol/L. If the instrument specification really means each concentration is accurate to ±0.01 mol/L, the larger residuals point to additional experimental variability or model inadequacy (or that the stated specification is not the uncertainty for these measurements).
 
 # %% [markdown]
 # ## 5. Your project
