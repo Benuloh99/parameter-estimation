@@ -311,17 +311,48 @@ print(T_all[:12], t_all[:12], cA_all[:12], sep='\n')
 
 # %%
 def cA_model_all(x, log10A, Ea, dH, dS):
-    """C_A (mol/L) for every (T, t) pair in x. Ea and dH in kJ/mol, dS in J/mol/K."""
-    T_col, t_col = x
-    
+    """C_A (mol/L) for every (T, t) pair in x. Ea and dH are in kJ/mol, dS in J/mol/K."""
+    T_col, t_col = (np.asarray(column, dtype=float) for column in x)
+    if T_col.shape != t_col.shape or T_col.ndim != 1:
+        raise ValueError("temperature and time arrays must be matching one-dimensional arrays")
+
+    predictions = np.empty_like(t_col, dtype=float)
+    A = 10.0**log10A
+    for T in np.unique(T_col):
+        mask = T_col == T
+        kf = A * np.exp(-(Ea * 1000.0) / (R * T))
+        K = np.exp(-((dH * 1000.0) - T * dS) / (R * T))
+        kr = kf / K
+        predictions[mask] = cA_model(t_col[mask], kf, kr)
+    return predictions
 
 # %%
+# Start from the task 2 line-fit estimates. Report one-standard-error uncertainties.
+p0_task3 = (log10A_2, Ea_2, dH_2, dS_2)
+params_task3, pcov_task3 = scipy.optimize.curve_fit(
+    cA_model_all, x_all, cA_all, p0=p0_task3, maxfev=10000
+)
+perr_task3 = np.sqrt(np.diag(pcov_task3))
+parameter_names = ["log10(A)", "Ea (kJ/mol)", "Delta H (kJ/mol)", "Delta S (J/mol/K)"]
+for name, value, error in zip(parameter_names, params_task3, perr_task3):
+    print(f"{name}: {value:.4f} ± {error:.4f} (one standard error)")
 
 # %% [markdown]
 # **(b)** Now start from your estimates from before the experiments instead (6, 45, −10, −50).
 # Does it find the same answer? How far did the data move you from what you expected?
 
 # %%
+# Refit from the estimates made before seeing these data.
+prior_guess = (6.0, 45.0, -10.0, -50.0)
+params_prior, pcov_prior = scipy.optimize.curve_fit(
+    cA_model_all, x_all, cA_all, p0=prior_guess, maxfev=10000
+)
+print("Fit starting at prior estimates:")
+for name, value, error in zip(parameter_names, params_prior, np.sqrt(np.diag(pcov_prior))):
+    print(f"{name}: {value:.4f} ± {error:.4f}")
+print("Difference from prior start to fit:")
+for name, prior, value in zip(parameter_names, prior_guess, params_prior):
+    print(f"{name}: {value-prior:+.4f}")
 
 # %% [markdown]
 # **(c)** Compare with task 2. Are the centres the same? Are the error bars? Which set of
@@ -334,9 +365,24 @@ def cA_model_all(x, log10A, Ea, dH, dS):
 # If someone quotes only your four ± values, what are they missing?
 
 # %%
+correlation_task3 = pcov_task3 / np.outer(perr_task3, perr_task3)
+print("Task 3 correlation matrix (parameter order: log10(A), Ea, Delta H, Delta S):")
+print(np.array2string(correlation_task3, precision=3, suppress_small=True))
+print()
+print("Task 2 and task 3 centers, with one-SE errors:")
+for name, step2, se2, step3, se3 in zip(
+    parameter_names,
+    [log10A_2, Ea_2, dH_2, dS_2],
+    [log10A_2_se, Ea_2_se, dH_2_se, dS_2_se],
+    params_task3,
+    perr_task3,
+):
+    print(f"{name}: task 2 {step2:.4f} ± {se2:.4f}; task 3 {step3:.4f} ± {se3:.4f}")
 
 # %% [markdown]
-# *Answer:*
+# *Answer:* Starting the four-parameter fit from the pre-experiment estimates converges to the same solution as starting from task 2. Relative to $(6,45,-10,-50)$, the fitted values move by about $+3.49$ in $\log_{10}A$, $+19.31$ kJ/mol in $E_a$, $+21.53$ kJ/mol in $\Delta H$, and $+87.35$ J/mol/K in $\Delta S$. The Arrhenius and van ’t Hoff values from task 2 and the simultaneous-fit centers are close, though not identical. The simultaneous fit’s uncertainties are preferable because it fits all 30 measurements directly and estimates their covariance in the four-parameter model, instead of fitting rates first and then regressing only three derived points. These are still local, one-standard-error estimates under the model and equal-variance least-squares assumptions.
+#
+# The strongest correlations are between $\log_{10}A$ and $E_a$ (about $+1.000$) and between $\Delta H$ and $\Delta S$ (about $+1.000$). Over this limited temperature range, changes in either pair can compensate one another and preserve nearly the same predicted rates or equilibrium constants. The cross-pair correlations are more moderate (about $-0.37$). Reporting four separate $\pm$ values hides these tilted, correlated uncertainty directions; the full covariance/correlation matrix is needed to show them.
 
 # %% [markdown]
 # ## 4. Look at the residuals
