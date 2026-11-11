@@ -420,7 +420,7 @@ fig.tight_layout()
 plt.show()
 
 # %% [markdown]
-# *Answer:* The residuals fluctuate around zero with no strong smooth time trend, though there are short runs of same-sign residuals, especially at 308 K, so they are not perfectly patternless. The scatter is roughly similar across temperatures (about 0.07–0.10 mol/L RMS), and the pooled estimate is $s=0.0889$ mol/L using $N-p=30-4=26$ degrees of freedom. This suggests the effective measurement-plus-model scatter is around 0.09 mol/L, not 0.01 mol/L. If the instrument specification really means each concentration is accurate to ±0.01 mol/L, the larger residuals point to additional experimental variability or model inadequacy (or that the stated specification is not the uncertainty for these measurements).
+# *Answer:* The residuals fluctuate around zero without a strong smooth time trend, but the scatter is not the same at all temperatures: the RMS is 0.113 mol/L at 298 K, 0.056 mol/L at 308 K, and 0.068 mol/L at 323 K. The 298 K residuals are more spread out, though there are only ten points per temperature. Pooled over all data, $s=0.0889$ mol/L using $N-p=30-4=26$ degrees of freedom. This suggests the effective measurement-plus-model scatter is around 0.09 mol/L, not 0.01 mol/L. If the instrument specification really means each concentration is accurate to ±0.01 mol/L, the larger residuals point to additional experimental variability, model inadequacy, or a specification that does not represent the uncertainty of these measurements.
 
 # %% [markdown]
 # ## 5. Your project
@@ -432,7 +432,7 @@ plt.show()
 # correlated, the way $E_a$ and $A$ are here?
 
 # %% [markdown]
-# *Answer:*
+# *Answer:* In my solvent-aided hydrogenolysis of polyethylene project, I expect to fit apparent activation energies and pre-exponential factors for polymer-chain scission and solvent-mediated hydrogen transfer, and potentially adsorption or coverage constants if I use an LHHW kinetic model. The main data will come from my own batch-reactor experiments across temperature, solvent, catalyst, and time conditions: polyethylene conversion and molecular-weight change, liquid product distributions from GC×GC-FID, and gas composition from GC-TCD; literature data may provide comparison points. I do not yet know the uncertainty for every measurement, so I would estimate it from replicate runs, calibration standards, and instrument precision. Errors may be close to a fixed absolute amount for some bulk measurements, while GC product measurements are likely to have larger relative errors for low-abundance compounds. I also expect parameter correlations, especially between Arrhenius pre-exponential factors and activation energies, and between adsorption and kinetic constants in an LHHW model. Collecting data over a wider range of temperatures and solvent compositions should help separate those effects.
 
 # %% [markdown]
 # ## Stretch problems (optional)
