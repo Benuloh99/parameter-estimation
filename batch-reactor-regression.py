@@ -212,6 +212,25 @@ plt.show()
 # or exothermic? How can you tell?
 
 # %%
+rate_fits = {}
+print("T (K)   kf (s^-1)        kr (s^-1)        K = kf/kr")
+for T in temperatures:
+    params, covariance = scipy.optimize.curve_fit(
+        cA_model, times, cA_data[T], p0=(0.02, 0.015), maxfev=10000
+    )
+    errors = np.sqrt(np.diag(covariance))  # one standard error
+    kf, kr = params
+    K = kf / kr
+    # Delta-method uncertainty for the ratio, including the fitted covariance.
+    var_K = K**2 * (
+        covariance[0, 0] / kf**2
+        + covariance[1, 1] / kr**2
+        - 2 * covariance[0, 1] / (kf * kr)
+    )
+    K_error = np.sqrt(var_K)
+    rate_fits[T] = (params, covariance, errors, K, K_error)
+    print(f"{T:6.2f}  {kf:.6f} ± {errors[0]:.6f}  "
+          f"{kr:.6f} ± {errors[1]:.6f}  {K:.4f} ± {K_error:.4f}")
 
 # %% [markdown]
 # **(b) Arrhenius.** As in Lecture 13: `scipy.stats.linregress` on $\ln k_f$ against
@@ -225,6 +244,26 @@ plt.show()
 # $\Delta H$ agree with what you said in (a)?
 
 # %%
+kf_by_T = np.array([rate_fits[T][0][0] for T in temperatures])
+K_by_T = np.array([rate_fits[T][3] for T in temperatures])
+
+arrhenius_fit = scipy.stats.linregress(1 / temperatures, np.log(kf_by_T))
+Ea_2 = -arrhenius_fit.slope * R / 1000  # kJ/mol
+Ea_2_se = arrhenius_fit.stderr * R / 1000
+log10A_2 = arrhenius_fit.intercept / np.log(10)
+log10A_2_se = arrhenius_fit.intercept_stderr / np.log(10)
+
+vanthoff_fit = scipy.stats.linregress(1 / temperatures, np.log(K_by_T))
+dH_2 = -vanthoff_fit.slope * R / 1000  # kJ/mol
+dH_2_se = vanthoff_fit.stderr * R / 1000
+dS_2 = vanthoff_fit.intercept * R  # J/mol/K
+dS_2_se = vanthoff_fit.intercept_stderr * R
+
+print(f"log10(A) = {log10A_2:.3f} ± {log10A_2_se:.3f}")
+print(f"Ea = {Ea_2:.3f} ± {Ea_2_se:.3f} kJ/mol")
+print(f"Delta H = {dH_2:.3f} ± {dH_2_se:.3f} kJ/mol")
+print(f"Delta S = {dS_2:.3f} ± {dS_2_se:.3f} J/mol/K")
+print("Each ± is one standard error from the regression output.")
 
 # %% [markdown]
 # **(d)** `linregress` gave you a ± on each of these. What does that ± know about,
@@ -232,7 +271,9 @@ plt.show()
 # the ± you got in (a).
 
 # %% [markdown]
-# *Answer:*
+# *Answer:* The fitted equilibrium constants increase with temperature ($Kpprox0.837$, $1.000$, and $1.220$ at 298, 308, and 323 K). Since products are increasingly favored as temperature rises, the reaction is endothermic; the van ’t Hoff fit agrees, giving $\Delta H=+11.99\pm0.74$ kJ/mol. All reported $\pm$ values are one standard error. The separate Arrhenius fit gives $\log_{10}A=9.201\pm0.172$ and $E_a=62.62\pm1.02$ kJ/mol; the van ’t Hoff fit gives $\Delta S=38.79\pm2.38$ J/mol/K.
+#
+# `linregress` estimates uncertainty from the scatter about each straight line and treats the three temperatures (the $x$ values) as exact. It does not carry forward the uncertainty or covariance in each independently fitted $k_f$, $k_r$, or $K$. Each regression has only three points, so its residual-based error estimate has just one degree of freedom and is quite uncertain.
 
 # %% [markdown]
 # ## 3. All the data at once
