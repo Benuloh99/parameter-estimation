@@ -11,7 +11,6 @@
 #     language: python
 #     name: python3
 # ---
-
 # %% [markdown]
 # # Regression: a reversible reaction in a batch reactor
 #
@@ -86,7 +85,6 @@ plt.ylim(0, None)
 plt.legend()
 plt.show()
 
-
 # %% [markdown]
 # ## 1. One temperature
 #
@@ -106,11 +104,39 @@ plt.show()
 # %%
 def cA_model(times, kf, kr):
     """C_A (mol/L) at each of `times` (s), for rate constants kf and kr (1/s)."""
-    
+    times = np.asarray(times, dtype=float)
+    if times.ndim != 1 or times.size == 0:
+        raise ValueError("times must be a nonempty one-dimensional array")
+    if np.any(times < 0) or np.any(np.diff(times) < 0):
+        raise ValueError("times must be nonnegative and sorted")
+    if times[-1] == 0:
+        return np.full(times.shape, cA0, dtype=float)
+
+    def rhs(t, y):
+        cA = y[0]
+        cB = cA0 - cA
+        return [kr * cB - kf * cA]
+
+    solution = scipy.integrate.solve_ivp(
+        rhs,
+        (0.0, float(times[-1])),
+        [cA0],
+        t_eval=times,
+        rtol=1e-9,
+        atol=1e-11,
+    )
+    if not solution.success:
+        raise RuntimeError(solution.message)
+    return solution.y[0]
 
 
-# your test here
-
+# Check the ODE solver against the analytical solution.
+test_kf, test_kr = 0.03, 0.02
+test_times = np.array([0.0, 1.0, 10.0, 50.0])
+test_ceq = cA0 * test_kr / (test_kf + test_kr)
+test_exact = test_ceq + (cA0 - test_ceq) * np.exp(-(test_kf + test_kr) * test_times)
+assert np.allclose(cA_model(test_times, test_kf, test_kr), test_exact, rtol=1e-7, atol=1e-9)
+print("ODE model matches the exact solution for the test rates.")
 
 # %% [markdown]
 # **(b) Fit it at 298.15 K**, with `scipy.optimize.curve_fit`. **Try it without `p0` first.**
@@ -120,6 +146,33 @@ def cA_model(times, kf, kr):
 # from the data. Roughly how long does $C_A$ take to get halfway to where it ends up?
 
 # %%
+# First try curve_fit's default starting values (both rates start at 1 s^-1).
+# It may return a numerical result, so check whether that result actually fits the data.
+import warnings
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", RuntimeWarning)
+    try:
+        default_fit = scipy.optimize.curve_fit(cA_model, times, cA_data[298.15])
+        default_params = default_fit[0]
+        default_residuals = cA_data[298.15] - cA_model(times, *default_params)
+        print("Default-start parameters:", default_params, "s^-1")
+        print(f"Default-start sum of squared residuals: {np.sum(default_residuals**2):.3f} (mol/L)^2")
+    except RuntimeError as error:
+        print("Default-start fit failed:", error)
+
+# The data fall from 10 toward about 5.5 mol/L over roughly 100 s, so rates
+# around 10^-2 s^-1 are a more realistic starting scale than 1 s^-1.
+p0_298 = (0.02, 0.015)
+params_298, pcov_298 = scipy.optimize.curve_fit(
+    cA_model, times, cA_data[298.15], p0=p0_298, maxfev=10000
+)
+perr_298 = np.sqrt(np.diag(pcov_298))  # one-standard-error uncertainties
+kf_298, kr_298 = params_298
+half_time_298 = np.log(2) / (kf_298 + kr_298)
+print(f"Initial guess (kf, kr): {p0_298} s^-1")
+print(f"Fit (kf, kr): {kf_298:.6f}, {kr_298:.6f} s^-1")
+print(f"One-SE uncertainties: {perr_298[0]:.6f}, {perr_298[1]:.6f} s^-1")
+print(f"Model half-time toward equilibrium: {half_time_298:.1f} s")
 
 # %%
 
@@ -131,9 +184,23 @@ def cA_model(times, kf, kr):
 # choose it?
 
 # %%
+fit_298 = cA_model(times, *params_298)
+residuals_298 = cA_data[298.15] - fit_298
+
+fig, (ax, ax_res) = plt.subplots(2, 1, sharex=True, gridspec_kw={"height_ratios": [3, 1]})
+ax.plot(times, cA_data[298.15], "o", label="data")
+ax.plot(times, fit_298, "-", label="fit")
+ax.set_ylabel("$C_A$ (mol/L)")
+ax.legend()
+ax_res.axhline(0, color="black", linewidth=1)
+ax_res.plot(times, residuals_298, "o")
+ax_res.set_xlabel("time (s)")
+ax_res.set_ylabel("data - fit")
+fig.tight_layout()
+plt.show()
 
 # %% [markdown]
-# *Answer:*
+# *Answer:* With no `p0`, `curve_fit` does not immediately fail, but its default starting values are both 1 s$^{-1}$, much faster than the roughly 20 s decay suggested by the data. It returns extremely large rates ($k_fpprox198$ and $k_rpprox357$ s$^{-1}$), a poor fit. I therefore started at $k_f=0.02$ and $k_r=0.015$ s$^{-1}$, on the scale implied by the observed time course. The fit gives $k_f=0.01680\pm0.00079$ s$^{-1}$ and $k_r=0.02006\pm0.00154$ s$^{-1}$. Each $\pm$ is one standard error from the diagonal of the `curve_fit` covariance matrix. The fitted half-time, $\ln 2/(k_f+k_r)$, is about 18.8 s; visually the data reach about halfway toward their apparent endpoint within roughly 20 s.
 
 # %% [markdown]
 # ## 2. Three temperatures, in two steps
@@ -186,7 +253,6 @@ cA_all = np.concatenate([cA_data[T] for T in temperatures])
 x_all = (T_all, t_all)
 print(T_all[:12], t_all[:12], cA_all[:12], sep='\n')
 
-
 # %% [markdown]
 # **(a)** Write `cA_model_all(x, log10A, Ea, dH, dS)`. Unpack `x` into temperatures and
 # times. For each temperature, work out $k_f$, $K$ and $k_r$, then call your `cA_model` for
@@ -207,7 +273,6 @@ def cA_model_all(x, log10A, Ea, dH, dS):
     """C_A (mol/L) for every (T, t) pair in x. Ea and dH in kJ/mol, dS in J/mol/K."""
     T_col, t_col = x
     
-
 
 # %%
 
